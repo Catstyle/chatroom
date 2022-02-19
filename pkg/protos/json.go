@@ -4,55 +4,76 @@ import (
 	"bufio"
 	"encoding/binary"
 	"encoding/json"
-	// "log"
+
+	"github.com/catstyle/chatroom/utils"
 )
 
 type MsgType int
 
 const (
-	Req = iota
-	Resp
-	Broadcast
+	REQ = iota
+	RESP
+	BROADCAST
+	ERROR
 )
 
 type Message struct {
-	MsgID   uint32  `json:"msg_id"`
-	MsgType MsgType `json:"msg_type"`
-	Method  string  `json:"method"`
-	Data    string  `json:"data"`
+	MsgID         uint32  `json:"msg_id"`
+	MsgType       MsgType `json:"msg_type"`
+	Method        string  `json:"method"`
+	ContentLength uint32  `json:"content_length"`
+	Data          []byte  `json:"-"`
+}
+
+func (m Message) Convert(msgType MsgType) *Message {
+	return &Message{
+		MsgID:   m.MsgID,
+		MsgType: msgType,
+	}
 }
 
 type Protocol interface {
-	Encode(msg *Message) ([]byte, error)
-	Decode(rd *bufio.Reader) (*Message, error)
+	EncodeMessage(*Message) []byte
+	EncodeMessageWithData(*Message, interface{}) ([]byte, error)
+	EncodeData(interface{}) ([]byte, error)
+	DecodeMessage(*bufio.Reader) (*Message, error)
+	DecodeData([]byte, interface{}) error
 }
 
 type JSONProtocol struct {
 }
 
-func (p *JSONProtocol) Encode(msg *Message) ([]byte, error) {
-	return nil, nil
+func (p *JSONProtocol) EncodeMessage(msg *Message) []byte {
+	data, _ := json.Marshal(msg)
+	headerSize := make([]byte, 2)
+	binary.BigEndian.PutUint16(headerSize, uint16(len(data)))
+	return append(headerSize, data...)
 }
 
-func (p *JSONProtocol) Decode(rd *bufio.Reader) (*Message, error) {
+func (p *JSONProtocol) EncodeData(v interface{}) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+func (p *JSONProtocol) EncodeMessageWithData(msg *Message, v interface{}) ([]byte, error) {
+	var err error
+	data, err := p.EncodeData(v)
+	if err != nil {
+		data, _ = p.EncodeData(utils.M{"error": err})
+	}
+	msg.ContentLength = uint32(len(data))
+	return append(p.EncodeMessage(msg), data...), nil
+}
+
+func (p *JSONProtocol) DecodeMessage(rd *bufio.Reader) (*Message, error) {
 	var message Message
 	var err error
-
-	_, err = rd.Peek(2)
-	if err != nil {
-		return nil, err
-	}
 
 	var size uint16
 	err = binary.Read(rd, binary.BigEndian, &size)
 	if err != nil {
 		return nil, err
 	}
-	// log.Println("size", size)
-	_, err = rd.Peek(int(size))
-	if err != nil {
-		return nil, err
-	}
+
 	body := make([]byte, size)
 	err = binary.Read(rd, binary.BigEndian, body)
 	if err != nil {
@@ -62,5 +83,17 @@ func (p *JSONProtocol) Decode(rd *bufio.Reader) (*Message, error) {
 	if err = json.Unmarshal(body, &message); err != nil {
 		return nil, err
 	}
+
+	data := make([]byte, message.ContentLength)
+	err = binary.Read(rd, binary.BigEndian, data)
+	if err != nil {
+		return nil, err
+	}
+	message.Data = data
+
 	return &message, err
+}
+
+func (p *JSONProtocol) DecodeData(data []byte, v interface{}) error {
+	return json.Unmarshal(data, v)
 }

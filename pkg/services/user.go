@@ -19,6 +19,18 @@ type userService struct {
 	repo *repo.UserRepo
 }
 
+var userSvc *userService
+
+func InitUserService() {
+	userSvc = &userService{
+		repo: repo.GetUserRepo(),
+	}
+}
+
+func GetUserService() *userService {
+	return userSvc
+}
+
 func (svc *userService) Login(name, token string) (*models.User, error) {
 	options := utils.GetOptions()
 	token = utils.MD5Sum(token, options.GetString("SECRET_TOKEN"))

@@ -2,6 +2,7 @@ package channel
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/catstyle/chatroom/pkg/protos"
+	"github.com/catstyle/chatroom/utils"
 )
 
 type ServerConfig struct {
@@ -25,13 +27,16 @@ type TCPServer struct {
 	conns    map[int]net.Conn
 	done     chan bool
 	wg       sync.WaitGroup
+
+	routers map[string]Router
 }
 
 func NewTCPServer(config ServerConfig) *TCPServer {
 	return &TCPServer{
-		config: config,
-		conns:  make(map[int]net.Conn),
-		done:   make(chan bool),
+		config:  config,
+		conns:   make(map[int]net.Conn),
+		done:    make(chan bool),
+		routers: make(map[string]Router),
 	}
 }
 
@@ -62,6 +67,22 @@ func (s *TCPServer) Start() {
 	}
 
 	s.wg.Wait()
+}
+
+func (s *TCPServer) AddRouter(any interface{}, prefix string) error {
+	routers, err := NewRouters(any, prefix)
+	if err != nil {
+		return err
+	}
+
+	for _, router := range routers {
+		name := router.GetName()
+		if _, ok := s.routers[name]; ok {
+			return fmt.Errorf("router name already used, %s", name)
+		}
+		s.routers[name] = router
+	}
+	return nil
 }
 
 func (s *TCPServer) catchSignal() {
@@ -108,21 +129,29 @@ func (s *TCPServer) shutdown(sig os.Signal) {
 }
 
 func (s *TCPServer) handler(conn net.Conn, done chan bool) {
-	defer conn.Close()
-	defer s.wg.Done()
+	addr := conn.RemoteAddr()
+
+	defer func() {
+		conn.Close()
+		s.wg.Done()
+		// if err := recover(); err != nil {
+		// 	log.Printf("%s: recover from panic error %s\n", conn.RemoteAddr(), err)
+		// }
+		log.Printf("%s: closed\n", addr)
+	}()
 
 	out := make(chan *protos.Message)
 	go func() {
 		buf := bufio.NewReader(conn)
 		for {
 			conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-			msg, err := s.config.Protocol.Decode(buf)
+			msg, err := s.config.Protocol.DecodeMessage(buf)
 			if err == io.EOF {
 				log.Printf("%s: read EOF\n", conn)
 				break
 			}
 			if err != nil {
-				log.Printf("%s: decode proto error %s\n", conn.RemoteAddr(), err)
+				log.Printf("%s: decode proto error %s\n", addr, err)
 				break
 			}
 			out <- msg
@@ -136,11 +165,30 @@ func (s *TCPServer) handler(conn net.Conn, done chan bool) {
 			return
 
 		case msg := <-out:
-			log.Printf("%s receive message %#v", conn.RemoteAddr(), msg)
+			log.Printf("%s: receive message %d, %s", addr, msg.MsgID, msg.Method)
 			if msg == nil {
 				break
 			}
 			// TODO: handle the message
+			if router, ok := s.routers[msg.Method]; ok {
+				err, exit := router.Dispatch(msg, conn, s.config.Protocol)
+				if err != nil {
+					log.Printf(
+						"%s: dispatch %s error %s, exit %v",
+						addr, msg.Method, err, exit,
+					)
+				}
+				if exit {
+					return
+				}
+			} else {
+				log.Printf("%s: receive unknown message %#v", addr, msg)
+				data, _ := s.config.Protocol.EncodeMessageWithData(
+					msg.Convert(protos.ERROR),
+					utils.M{"error": "unknown method" + msg.Method},
+				)
+				conn.Write(data)
+			}
 		}
 	}
 }
