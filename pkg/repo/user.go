@@ -6,7 +6,16 @@ import (
 )
 
 type UserRepo struct {
-	DB *db.Repo
+	db *db.Repo
+}
+
+var userRepo *UserRepo
+
+func GetUserRepo() *UserRepo {
+	if userRepo == nil {
+		userRepo = &UserRepo{db: db.GetDB()}
+	}
+	return userRepo
 }
 
 func (repo *UserRepo) CreateUser(name, token string) (*models.User, error) {
@@ -14,7 +23,7 @@ func (repo *UserRepo) CreateUser(name, token string) (*models.User, error) {
 		Name:      name,
 		TokenHash: token,
 	}
-	if err := repo.DB.Create(&user).Error; err != nil {
+	if err := repo.db.Create(&user).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
@@ -22,7 +31,7 @@ func (repo *UserRepo) CreateUser(name, token string) (*models.User, error) {
 
 func (repo *UserRepo) GetByName(name string) (*models.User, error) {
 	var user models.User
-	if err := repo.DB.Where(&models.User{Name: name}).First(&user).Error; err != nil {
+	if err := repo.db.Where(&models.User{Name: name}).First(&user).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
