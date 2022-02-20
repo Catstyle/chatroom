@@ -1,8 +1,8 @@
 package channel
 
 import (
-	"io"
 	"log"
+	"net"
 	"reflect"
 	"strings"
 
@@ -14,7 +14,7 @@ type Router interface {
 	GetName() string
 	GetArgs() reflect.Value
 	GetReply() reflect.Value
-	Dispatch(*protos.Message, io.Writer, protos.Protocol) (error, bool)
+	Dispatch(net.Conn, *protos.Message, protos.Protocol) (error, bool)
 }
 
 type Route struct {
@@ -38,11 +38,12 @@ func NewRouters(any interface{}, prefix string) ([]Router, error) {
 		method := apiType.Method(i)
 		mType := method.Type
 		routers = append(routers, &Route{
-			name:      prefix + method.Name,
-			receiver:  receiver,
-			method:    method,
-			argsType:  mType.In(1).Elem(),
-			replyType: mType.In(2).Elem(),
+			name:     prefix + method.Name,
+			receiver: receiver,
+			method:   method,
+			// assume the first args is conn
+			argsType:  mType.In(2).Elem(),
+			replyType: mType.In(3).Elem(),
 		})
 	}
 	return routers, err
@@ -63,7 +64,7 @@ func (r *Route) GetReply() reflect.Value {
 
 // return value indicate disconnect
 func (r *Route) Dispatch(
-	msg *protos.Message, writer io.Writer, proto protos.Protocol,
+	conn net.Conn, msg *protos.Message, proto protos.Protocol,
 ) (error, bool) {
 	var err error
 
@@ -75,7 +76,7 @@ func (r *Route) Dispatch(
 	reply := reflect.New(r.replyType)
 
 	errValues := r.method.Func.Call([]reflect.Value{
-		r.receiver, args, reply,
+		r.receiver, reflect.ValueOf(conn), args, reply,
 	})
 
 	errValue := errValues[0].Interface()
@@ -95,7 +96,7 @@ func (r *Route) Dispatch(
 		replyData = utils.M{"error": err}
 	}
 	respData, _ := proto.EncodeMessageWithData(msg.Convert(msgType), replyData)
-	writer.Write(respData)
+	conn.Write(respData)
 
 	return err, false
 }

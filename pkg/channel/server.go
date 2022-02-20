@@ -146,17 +146,42 @@ func (s *TCPServer) handler(conn net.Conn, done chan bool) {
 		for {
 			conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 			msg, err := s.config.Protocol.DecodeMessage(buf)
-			if err == io.EOF {
-				log.Printf("%s: read EOF\n", conn)
-				break
-			}
 			if err != nil {
-				log.Printf("%s: decode proto error %s\n", addr, err)
+				if err == io.EOF {
+					log.Printf("%s: read EOF\n", conn)
+				} else {
+					log.Printf("%s: decode proto error %s\n", addr, err)
+				}
+				out <- nil
+				close(out)
 				break
 			}
 			out <- msg
 		}
 	}()
+
+	// just do it here for convenience
+	// should do it as hooks
+
+	msg := <-out
+	if msg.Method != "User.Login" {
+		data, _ := s.config.Protocol.EncodeMessageWithData(
+			msg.Convert(protos.ERROR),
+			utils.M{"error": "should call Login first" + msg.Method},
+		)
+		conn.Write(data)
+		return
+	}
+	err, exit := s.routers["User.Login"].Dispatch(conn, msg, s.config.Protocol)
+	if err != nil {
+		log.Printf(
+			"%s: dispatch %s error %s, exit %v",
+			addr, msg.Method, err, exit,
+		)
+	}
+	if exit {
+		return
+	}
 
 	for {
 		select {
@@ -169,9 +194,8 @@ func (s *TCPServer) handler(conn net.Conn, done chan bool) {
 			if msg == nil {
 				break
 			}
-			// TODO: handle the message
 			if router, ok := s.routers[msg.Method]; ok {
-				err, exit := router.Dispatch(msg, conn, s.config.Protocol)
+				err, exit := router.Dispatch(conn, msg, s.config.Protocol)
 				if err != nil {
 					log.Printf(
 						"%s: dispatch %s error %s, exit %v",

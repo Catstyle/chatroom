@@ -1,6 +1,10 @@
 package api
 
-import "github.com/catstyle/chatroom/pkg/services"
+import (
+	"net"
+
+	"github.com/catstyle/chatroom/pkg/services"
+)
 
 const (
 	userErrorIndex = 1000
@@ -19,7 +23,7 @@ type LoginReply struct {
 }
 
 type UserApi interface {
-	Login(*LoginArgs, *LoginReply) error
+	Login(net.Conn, *LoginArgs, *LoginReply) error
 }
 
 type userApi struct {
@@ -29,9 +33,11 @@ func NewUserApi() UserApi {
 	return &userApi{}
 }
 
-func (api *userApi) Login(args *LoginArgs, reply *LoginReply) error {
+func (api *userApi) Login(
+	conn net.Conn, args *LoginArgs, reply *LoginReply,
+) error {
 	userSvc := services.GetUserService()
-	user, err := userSvc.Login(args.Nickname, args.Token)
+	user, err := userSvc.Login(conn, args.Nickname, args.Token)
 	if err != nil {
 		return err
 	}
