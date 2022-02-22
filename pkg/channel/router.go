@@ -2,7 +2,6 @@ package channel
 
 import (
 	"log"
-	"net"
 	"reflect"
 	"strings"
 
@@ -14,7 +13,7 @@ type Router interface {
 	GetName() string
 	GetArgs() reflect.Value
 	GetReply() reflect.Value
-	Dispatch(net.Conn, *protos.Message, protos.Protocol) (error, bool)
+	Dispatch(*Conn, *protos.Message) (error, bool)
 }
 
 type Route struct {
@@ -64,12 +63,12 @@ func (r *Route) GetReply() reflect.Value {
 
 // return value indicate disconnect
 func (r *Route) Dispatch(
-	conn net.Conn, msg *protos.Message, proto protos.Protocol,
+	conn *Conn, msg *protos.Message,
 ) (error, bool) {
 	var err error
 
 	args := reflect.New(r.argsType)
-	if err = proto.DecodeData(msg.Data, args.Interface()); err != nil {
+	if err = conn.Protocol.DecodeData(msg.Data, args.Interface()); err != nil {
 		return err, true
 	}
 
@@ -82,8 +81,8 @@ func (r *Route) Dispatch(
 	errValue := errValues[0].Interface()
 	if errValue != nil {
 		err = errValue.(error)
+		log.Println("call method error", r.name, args, reply, err)
 	}
-	log.Println("call method", r.name, args, reply, err)
 
 	var msgType protos.MsgType
 	var replyData interface{}
@@ -95,8 +94,7 @@ func (r *Route) Dispatch(
 		msgType = protos.ERROR
 		replyData = utils.M{"error": err}
 	}
-	respData, _ := proto.EncodeMessageWithData(msg.Convert(msgType), replyData)
-	conn.Write(respData)
+	conn.SendMessage(msg.Convert(msgType), replyData)
 
 	return err, false
 }

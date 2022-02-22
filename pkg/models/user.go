@@ -1,16 +1,16 @@
 package models
 
-import "net"
+import "github.com/catstyle/chatroom/pkg/channel"
 
 type User struct {
-	ID        uint   `gorm:"primaryKey"`
-	Name      string `gorm:"uniqueIndex"`
-	TokenHash string
-	CTime     int `gorm:"autoCreateTime"`
+	ID        uint32 `gorm:"primaryKey" json:"id"`
+	Name      string `gorm:"uniqueIndex" json:"name"`
+	TokenHash string `json:"-"`
+	CTime     int64  `gorm:"autoCreateTime" json:"-"`
 }
 
 type OnlineUser struct {
 	User *User
 	// TODO: add custom Conn struct
-	Conn net.Conn
+	Conn *channel.Conn `json:"-"`
 }

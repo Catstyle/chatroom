@@ -1,8 +1,7 @@
 package api
 
 import (
-	"net"
-
+	"github.com/catstyle/chatroom/pkg/channel"
 	"github.com/catstyle/chatroom/pkg/services"
 )
 
@@ -23,7 +22,7 @@ type LoginReply struct {
 }
 
 type UserApi interface {
-	Login(net.Conn, *LoginArgs, *LoginReply) error
+	Login(*channel.Conn, *LoginArgs, *LoginReply) error
 }
 
 type userApi struct {
@@ -34,7 +33,7 @@ func NewUserApi() UserApi {
 }
 
 func (api *userApi) Login(
-	conn net.Conn, args *LoginArgs, reply *LoginReply,
+	conn *channel.Conn, args *LoginArgs, reply *LoginReply,
 ) error {
 	userSvc := services.GetUserService()
 	user, err := userSvc.Login(conn, args.Nickname, args.Token)

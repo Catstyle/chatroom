@@ -1,16 +1,13 @@
 package channel
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/catstyle/chatroom/pkg/protos"
 	"github.com/catstyle/chatroom/utils"
@@ -63,7 +60,7 @@ func (s *TCPServer) Start() {
 
 		s.conns[len(s.conns)] = conn
 		s.wg.Add(1)
-		go s.handler(conn, s.done)
+		go s.handler(NewConn(conn, s.config.Protocol))
 	}
 
 	s.wg.Wait()
@@ -128,56 +125,35 @@ func (s *TCPServer) shutdown(sig os.Signal) {
 
 }
 
-func (s *TCPServer) handler(conn net.Conn, done chan bool) {
+func (s *TCPServer) handler(conn *Conn) {
 	addr := conn.RemoteAddr()
 
 	defer func() {
 		conn.Close()
 		s.wg.Done()
-		// if err := recover(); err != nil {
-		// 	log.Printf("%s: recover from panic error %s\n", conn.RemoteAddr(), err)
-		// }
+		if err := recover(); err != nil {
+			log.Printf("%s: recover from panic error %+v\n", conn.RemoteAddr(), err)
+		}
 		log.Printf("%s: closed\n", addr)
 	}()
 
-	out := make(chan *protos.Message)
-	go func() {
-		buf := bufio.NewReader(conn)
-		for {
-			conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-			msg, err := s.config.Protocol.DecodeMessage(buf)
-			if err != nil {
-				if err == io.EOF {
-					log.Printf("%s: read EOF\n", conn)
-				} else {
-					log.Printf("%s: decode proto error %s\n", addr, err)
-				}
-				out <- nil
-				close(out)
-				break
-			}
-			out <- msg
-		}
-	}()
+	go conn.StartWriter()
+	go conn.StartReader()
 
 	// just do it here for convenience
 	// should do it as hooks
 
-	msg := <-out
+	msg := <-conn.RecvQueue
 	if msg.Method != "User.Login" {
-		data, _ := s.config.Protocol.EncodeMessageWithData(
+		conn.SendMessage(
 			msg.Convert(protos.ERROR),
 			utils.M{"error": "should call Login first" + msg.Method},
 		)
-		conn.Write(data)
 		return
 	}
-	err, exit := s.routers["User.Login"].Dispatch(conn, msg, s.config.Protocol)
+	err, exit := s.routers["User.Login"].Dispatch(conn, msg)
 	if err != nil {
-		log.Printf(
-			"%s: dispatch %s error %s, exit %v",
-			addr, msg.Method, err, exit,
-		)
+		log.Printf("%s: dispatch %s error %s, exit %v", addr, msg.Method, err, exit)
 	}
 	if exit {
 		return
@@ -185,17 +161,17 @@ func (s *TCPServer) handler(conn net.Conn, done chan bool) {
 
 	for {
 		select {
-		case <-done:
+		case <-s.done:
 			log.Println("closing conn due to server shutdown")
 			return
 
-		case msg := <-out:
+		case msg := <-conn.RecvQueue:
 			log.Printf("%s: receive message %d, %s", addr, msg.MsgID, msg.Method)
 			if msg == nil {
 				break
 			}
 			if router, ok := s.routers[msg.Method]; ok {
-				err, exit := router.Dispatch(conn, msg, s.config.Protocol)
+				err, exit := router.Dispatch(conn, msg)
 				if err != nil {
 					log.Printf(
 						"%s: dispatch %s error %s, exit %v",
@@ -207,11 +183,10 @@ func (s *TCPServer) handler(conn net.Conn, done chan bool) {
 				}
 			} else {
 				log.Printf("%s: receive unknown message %#v", addr, msg)
-				data, _ := s.config.Protocol.EncodeMessageWithData(
+				conn.SendMessage(
 					msg.Convert(protos.ERROR),
 					utils.M{"error": "unknown method" + msg.Method},
 				)
-				conn.Write(data)
 			}
 		}
 	}
