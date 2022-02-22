@@ -28,5 +28,6 @@ func main() {
 		},
 	)
 	server.AddRouter(api.NewUserApi(), "User")
+	server.AddRouter(api.NewChatroomApi(), "Chat")
 	server.Start()
 }

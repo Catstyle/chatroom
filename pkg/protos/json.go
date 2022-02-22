@@ -25,6 +25,14 @@ type Message struct {
 	Data          []byte  `json:"-"`
 }
 
+func NewMessage(msgId uint32, msgType MsgType, method string) *Message {
+	return &Message{
+		MsgID: msgId,
+		MsgType: msgType,
+		Method: method,
+	}
+}
+
 func (m Message) Convert(msgType MsgType) *Message {
 	return &Message{
 		MsgID:   m.MsgID,
@@ -58,10 +66,10 @@ func (p *JSONProtocol) EncodeMessageWithData(msg *Message, v interface{}) ([]byt
 	var err error
 	data, err := p.EncodeData(v)
 	if err != nil {
-		data, _ = p.EncodeData(utils.M{"error": err})
+		data, err = p.EncodeData(utils.M{"error": err})
 	}
 	msg.ContentLength = uint32(len(data))
-	return append(p.EncodeMessage(msg), data...), nil
+	return append(p.EncodeMessage(msg), data...), err
 }
 
 func (p *JSONProtocol) DecodeMessage(rd *bufio.Reader) (*Message, error) {
