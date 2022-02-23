@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"log"
 	"net"
 	"sync"
 
@@ -60,6 +61,16 @@ func (svc *userService) GetOnlineUser(
 
 	ou, ok := svc.onlineUsers[conn.RemoteAddr().String()]
 	return ou, ok
+}
+
+func (svc *userService) MustGetOnlineUser(
+	conn net.Conn,
+) *models.OnlineUser {
+	ou, ok := svc.GetOnlineUser(conn)
+	if !ok {
+		log.Panic("please call Login first")
+	}
+	return ou
 }
 
 func (svc *userService) login(name, token string) (*models.User, error) {

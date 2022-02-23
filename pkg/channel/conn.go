@@ -11,13 +11,15 @@ import (
 
 type Conn struct {
 	net.Conn
+	ConnId    int
 	Protocol  protos.Protocol
 	sendQueue chan []byte
 	RecvQueue chan *protos.Message
 }
 
-func NewConn(conn net.Conn, protocol protos.Protocol) *Conn {
+func NewConn(connId int, conn net.Conn, protocol protos.Protocol) *Conn {
 	return &Conn{
+		ConnId:    connId,
 		Conn:      conn,
 		Protocol:  protocol,
 		sendQueue: make(chan []byte),
@@ -36,9 +38,12 @@ func (conn *Conn) StartWriter() {
 	for data := range conn.sendQueue {
 		if _, err := conn.Conn.Write(data); err != nil {
 			// TODO: what to do, close this conn ?
-			log.Println(conn.Conn.RemoteAddr().String(), "write data error:", err)
+			log.Printf(
+				"%s: write data error, %s", conn.Conn.RemoteAddr().String(), err,
+			)
 		}
 	}
+	log.Printf("%s: done writer", conn.Conn.RemoteAddr().String())
 }
 
 func (conn *Conn) StartReader() {
