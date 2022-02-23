@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/catstyle/chatroom/pkg/protos"
 	"github.com/catstyle/chatroom/utils"
@@ -19,21 +20,26 @@ type ServerConfig struct {
 }
 
 type TCPServer struct {
-	config   ServerConfig
-	listener net.Listener
-	conns    map[int]net.Conn
-	done     chan bool
-	wg       sync.WaitGroup
+	config         ServerConfig
+	listener       net.Listener
+	listening      bool
+	conns          map[int]*Conn
+	acceptingQueue chan *Conn
+	closingQueue   chan *Conn
+	done           chan bool
+	wg             sync.WaitGroup
 
 	routers map[string]Router
 }
 
 func NewTCPServer(config ServerConfig) *TCPServer {
 	return &TCPServer{
-		config:  config,
-		conns:   make(map[int]net.Conn),
-		done:    make(chan bool),
-		routers: make(map[string]Router),
+		config:         config,
+		conns:          make(map[int]*Conn),
+		done:           make(chan bool),
+		routers:        make(map[string]Router),
+		acceptingQueue: make(chan *Conn),
+		closingQueue:   make(chan *Conn),
 	}
 }
 
@@ -44,26 +50,53 @@ func (s *TCPServer) Start() {
 	}
 	defer listener.Close()
 	s.listener = listener
+	s.listening = true
 
 	log.Printf("started tcp server... %s\n", s.config.Bind)
 
 	go s.catchSignal()
+	go s.accepter()
 
-	s.done = make(chan bool)
-	for {
-		conn, err := listener.Accept()
+	ticker := time.Tick(10 * time.Second)
+	for s.listening || len(s.conns) > 0 {
+		log.Printf(
+			"waiting for action, listening=%v, conns=%d",
+			s.listening, len(s.conns),
+		)
+		select {
+		case conn := <-s.acceptingQueue:
+			s.conns[conn.ConnId] = conn
+			s.wg.Add(1)
+			go s.handler(conn)
+		case conn := <-s.closingQueue:
+			log.Printf("%s: closed", conn.Conn.RemoteAddr())
+			conn.Close()
+			delete(s.conns, conn.ConnId)
+			s.wg.Done()
+		case <-ticker:
+			// do something or check if still listening
+		}
+	}
+
+	s.wg.Wait()
+	s.conns = nil
+	log.Printf("bye")
+}
+
+func (s *TCPServer) accepter() {
+	for s.listening {
+		sock, err := s.listener.Accept()
 		if err != nil {
 			log.Println("error accepting conn", err)
 			break
 		}
-		log.Println("accepted conn", conn.RemoteAddr())
 
-		s.conns[len(s.conns)] = conn
-		s.wg.Add(1)
-		go s.handler(NewConn(conn, s.config.Protocol))
+		log.Println("accepted conn", sock.RemoteAddr())
+
+		connId := len(s.conns)
+		conn := NewConn(connId, sock, s.config.Protocol)
+		s.acceptingQueue <- conn
 	}
-
-	s.wg.Wait()
 }
 
 func (s *TCPServer) AddRouter(any interface{}, prefix string) error {
@@ -118,47 +151,28 @@ func (s *TCPServer) shutdown(sig os.Signal) {
 	}
 
 	s.listener.Close()
+	s.listening = false
+	log.Printf("%s: shutdown %d conns", s.config.Bind, len(s.conns))
 	for idx := 0; idx < len(s.conns); idx++ {
 		s.done <- true
 	}
-	s.conns = nil
-
+	log.Printf("%s: shutdown", s.config.Bind)
 }
 
 func (s *TCPServer) handler(conn *Conn) {
 	addr := conn.RemoteAddr()
 
 	defer func() {
-		conn.Close()
-		s.wg.Done()
+		s.closingQueue <- conn
 		if err := recover(); err != nil {
 			log.Printf("%s: recover from panic error %+v\n", conn.RemoteAddr(), err)
 		}
-		log.Printf("%s: closed\n", addr)
 	}()
 
 	go conn.StartWriter()
 	go conn.StartReader()
 
-	// just do it here for convenience
-	// should do it as hooks
-
-	msg := <-conn.RecvQueue
-	if msg.Method != "User.Login" {
-		conn.SendMessage(
-			msg.Convert(protos.ERROR),
-			utils.M{"error": "should call Login first" + msg.Method},
-		)
-		return
-	}
-	err, exit := s.routers["User.Login"].Dispatch(conn, msg)
-	if err != nil {
-		log.Printf("%s: dispatch %s error %s, exit %v", addr, msg.Method, err, exit)
-	}
-	if exit {
-		return
-	}
-
+	doneLogin := false
 	for {
 		select {
 		case <-s.done:
@@ -169,6 +183,14 @@ func (s *TCPServer) handler(conn *Conn) {
 			log.Printf("%s: receive message %d, %s", addr, msg.MsgID, msg.Method)
 			if msg == nil {
 				break
+			}
+			if !doneLogin && msg.Method != "User.Login" {
+				log.Printf("%s: should call User.Login first, got %s", addr, msg.Method)
+				conn.SendMessage(
+					msg.Convert(protos.ERROR),
+					utils.M{"error": "should call Login first" + msg.Method},
+				)
+				return
 			}
 			if router, ok := s.routers[msg.Method]; ok {
 				err, exit := router.Dispatch(conn, msg)
@@ -181,8 +203,9 @@ func (s *TCPServer) handler(conn *Conn) {
 				if exit {
 					return
 				}
+				doneLogin = true
 			} else {
-				log.Printf("%s: receive unknown message %#v", addr, msg)
+				log.Printf("%s: receive unknown message %s", addr, msg.Method)
 				conn.SendMessage(
 					msg.Convert(protos.ERROR),
 					utils.M{"error": "unknown method" + msg.Method},

@@ -1,7 +1,7 @@
 package services
 
 import (
-	"net"
+	"fmt"
 	"sync"
 
 	"github.com/catstyle/chatroom/pkg/models"
@@ -32,7 +32,7 @@ func GetChatroomService() *chatroomService {
 }
 
 func (svc *chatroomService) Join(
-	conn net.Conn, roomId uint32, user *models.OnlineUser,
+	user *models.OnlineUser, roomId uint32,
 ) (*models.Chatroom, error) {
 	svc.lock.Lock()
 	defer svc.lock.Unlock()
@@ -45,6 +45,7 @@ func (svc *chatroomService) Join(
 		if err != nil {
 			return nil, err
 		}
+		svc.rooms[roomId] = room
 	}
 
 	svc.join(room, user)
@@ -65,4 +66,25 @@ func (svc *chatroomService) join(
 	room.Broadcast("Chat.UserJoin", utils.M{"user": *user.User})
 	err := room.UserJoin(user)
 	return err
+}
+
+func (svc *chatroomService) GetRoom(roomId uint32) (*models.Chatroom, bool) {
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
+	room, ok := svc.rooms[roomId]
+	return room, ok
+}
+
+func (svc *chatroomService) SendText(
+	user *models.OnlineUser, text string,
+) error {
+	room, ok := svc.GetRoom(user.RoomId)
+	if !ok {
+		return fmt.Errorf("no such room: %d", user.RoomId)
+	}
+	// TODO: filter text
+	room.Broadcast(
+		"Chat.TextMessage", utils.M{"user": *user.User, "text": text},
+	)
+	return nil
 }

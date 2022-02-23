@@ -10,7 +10,7 @@ type User struct {
 }
 
 type OnlineUser struct {
-	User *User
-	// TODO: add custom Conn struct
-	Conn *channel.Conn `json:"-"`
+	User   *User
+	Conn   *channel.Conn `json:"-"`
+	RoomId uint32
 }
