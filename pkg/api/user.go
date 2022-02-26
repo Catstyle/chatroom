@@ -12,13 +12,13 @@ const (
 )
 
 type LoginArgs struct {
-	Nickname string
-	Token    string
+	Name  string `json:"name"`
+	Token string `json:"token"`
 }
 
 type LoginReply struct {
-	Uid      uint32
-	Nickname string
+	Uid  uint32 `json:"uid"`
+	Name string `json:"name"`
 }
 
 type UserApi interface {
@@ -36,10 +36,11 @@ func (api *userApi) Login(
 	conn *channel.Conn, args *LoginArgs, reply *LoginReply,
 ) error {
 	userSvc := services.GetUserService()
-	user, err := userSvc.Login(conn, args.Nickname, args.Token)
+	user, err := userSvc.Login(conn, args.Name, args.Token)
 	if err != nil {
 		return err
 	}
 	reply.Uid = uint32(user.ID)
+	reply.Name = user.Name
 	return nil
 }

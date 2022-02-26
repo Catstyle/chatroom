@@ -11,11 +11,25 @@ const (
 	CRStatusDeleted = 100
 )
 
+type MsgType int
+
+const (
+	CMText MsgType = iota
+)
+
+type ChatMessage struct {
+	Sender  *User `json:"sender"`
+	CTime   int64       `json:"c_time"`
+	MsgType MsgType     `json:"msg_type"`
+	MsgData string      `json:"msg_data"`
+}
+
 type Chatroom struct {
-	ID     uint32 `gorm:"primaryKey"`
-	CTime  int64  `gorm:"autoCreateTime"`
-	Status int
-	Users  map[uint32]*OnlineUser
+	ID       uint32 `gorm:"primaryKey"`
+	CTime    int64  `gorm:"autoCreateTime"`
+	Status   int
+	Users    map[uint32]*OnlineUser
+	messages []*ChatMessage
 }
 
 func NewChatroom(roomId uint32) *Chatroom {
@@ -25,6 +39,27 @@ func NewChatroom(roomId uint32) *Chatroom {
 		Status: CRStatusNormal,
 		Users:  make(map[uint32]*OnlineUser),
 	}
+}
+
+func (room *Chatroom) NewChatMessage(
+	msgType MsgType, sender *User, data string,
+) *ChatMessage {
+	msg := &ChatMessage{
+		Sender:  sender,
+		CTime:   time.Now().UnixMicro(),
+		MsgType: msgType,
+		MsgData: data,
+	}
+	room.messages = append(room.messages, msg)
+	return msg
+}
+
+func (room *Chatroom) GetMessages(count int) []*ChatMessage {
+	start := len(room.messages) - 50
+	if start < 0 {
+		start = 0
+	}
+	return room.messages[start:]
 }
 
 func (room *Chatroom) Broadcast(method string, data interface{}) {

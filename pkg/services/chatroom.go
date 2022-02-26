@@ -83,8 +83,7 @@ func (svc *chatroomService) SendText(
 		return fmt.Errorf("no such room: %d", user.RoomId)
 	}
 	// TODO: filter text
-	room.Broadcast(
-		"Chat.TextMessage", utils.M{"user": *user.User, "text": text},
-	)
+	msg := room.NewChatMessage(models.CMText, user.User, text)
+	room.Broadcast("Chat.TextMessage", msg)
 	return nil
 }

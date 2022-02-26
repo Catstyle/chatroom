@@ -165,14 +165,13 @@ func (s *TCPServer) handler(conn *Conn) {
 	defer func() {
 		s.closingQueue <- conn
 		if err := recover(); err != nil {
-			log.Printf("%s: recover from panic error %+v\n", conn.RemoteAddr(), err)
+			log.Printf("%s: recover from panic error `%s`", addr, err)
 		}
 	}()
 
 	go conn.StartWriter()
 	go conn.StartReader()
 
-	doneLogin := false
 	for {
 		select {
 		case <-s.done:
@@ -180,18 +179,10 @@ func (s *TCPServer) handler(conn *Conn) {
 			return
 
 		case msg := <-conn.RecvQueue:
-			log.Printf("%s: receive message %d, %s", addr, msg.MsgID, msg.Method)
 			if msg == nil {
-				break
-			}
-			if !doneLogin && msg.Method != "User.Login" {
-				log.Printf("%s: should call User.Login first, got %s", addr, msg.Method)
-				conn.SendMessage(
-					msg.Convert(protos.ERROR),
-					utils.M{"error": "should call Login first" + msg.Method},
-				)
 				return
 			}
+			log.Printf("%s: receive message %d, %s", addr, msg.MsgID, msg.Method)
 			if router, ok := s.routers[msg.Method]; ok {
 				err, exit := router.Dispatch(conn, msg)
 				if err != nil {
@@ -203,7 +194,6 @@ func (s *TCPServer) handler(conn *Conn) {
 				if exit {
 					return
 				}
-				doneLogin = true
 			} else {
 				log.Printf("%s: receive unknown message %s", addr, msg.Method)
 				conn.SendMessage(
