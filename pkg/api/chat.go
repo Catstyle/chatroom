@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/catstyle/chatroom/pkg/channel"
@@ -53,8 +54,17 @@ func (api *chatroomApi) Join(
 	}
 
 	chatroomSvc := services.GetChatroomService()
+
+	if onlineUser.RoomId != 0 {
+		if onlineUser.RoomId != args.RoomId {
+			chatroomSvc.Leave(onlineUser, args.RoomId)
+			onlineUser.RoomId = 0
+		} else {
+			return fmt.Errorf("already in room")
+		}
+	}
+
 	if room, err := chatroomSvc.Join(onlineUser, args.RoomId); err == nil {
-		onlineUser.RoomId = room.ID
 		reply.RoomId = room.ID
 		reply.Users = room.Users
 		reply.Messages = room.GetMessages(50)
