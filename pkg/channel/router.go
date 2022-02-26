@@ -92,7 +92,7 @@ func (r *Route) Dispatch(
 	}
 	if err != nil {
 		msgType = protos.ERROR
-		replyData = utils.M{"error": err}
+		replyData = utils.M{"error": err.Error()}
 	}
 	conn.SendMessage(msg.Convert(msgType), replyData)
 

@@ -1,7 +1,8 @@
 package api
 
 import (
-	"errors"
+	"fmt"
+	"log"
 
 	"github.com/catstyle/chatroom/pkg/channel"
 	"github.com/catstyle/chatroom/pkg/models"
@@ -18,8 +19,9 @@ type JoinArgs struct {
 }
 
 type JoinReply struct {
-	RoomId uint32                        `json:"room_id"`
-	Users  map[uint32]*models.OnlineUser `json:"users"`
+	RoomId   uint32                        `json:"room_id"`
+	Users    map[uint32]*models.OnlineUser `json:"users"`
+	Messages []*models.ChatMessage         `json:"messages"`
 }
 
 type EmptyReply struct {
@@ -47,14 +49,25 @@ func (api *chatroomApi) Join(
 	userSvc := services.GetUserService()
 	onlineUser, ok := userSvc.GetOnlineUser(conn)
 	if !ok {
-		return errors.New("please call Login first")
+		// TODO: add Error Warning different level as return value
+		log.Panic("please call Login first")
 	}
 
 	chatroomSvc := services.GetChatroomService()
+
+	if onlineUser.RoomId != 0 {
+		if onlineUser.RoomId != args.RoomId {
+			chatroomSvc.Leave(onlineUser, args.RoomId)
+			onlineUser.RoomId = 0
+		} else {
+			return fmt.Errorf("already in room")
+		}
+	}
+
 	if room, err := chatroomSvc.Join(onlineUser, args.RoomId); err == nil {
-		onlineUser.RoomId = room.ID
 		reply.RoomId = room.ID
 		reply.Users = room.Users
+		reply.Messages = room.GetMessages(50)
 	}
 	return err
 }

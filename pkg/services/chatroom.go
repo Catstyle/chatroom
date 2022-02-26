@@ -63,8 +63,11 @@ func (svc *chatroomService) createRoom(
 func (svc *chatroomService) join(
 	room *models.Chatroom, user *models.OnlineUser,
 ) error {
-	room.Broadcast("Chat.UserJoin", utils.M{"user": *user.User})
 	err := room.UserJoin(user)
+	if err == nil {
+		user.RoomId = room.ID
+		room.Broadcast("Chat.UserJoin", utils.M{"user": *user.User})
+	}
 	return err
 }
 
@@ -83,8 +86,18 @@ func (svc *chatroomService) SendText(
 		return fmt.Errorf("no such room: %d", user.RoomId)
 	}
 	// TODO: filter text
-	room.Broadcast(
-		"Chat.TextMessage", utils.M{"user": *user.User, "text": text},
-	)
+	msg := room.NewChatMessage(models.CMText, user.User, text)
+	room.Broadcast("Chat.TextMessage", msg)
 	return nil
+}
+
+func (svc *chatroomService) Leave(user *models.OnlineUser, roomId uint32) {
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
+
+	room, ok := svc.rooms[roomId]
+	if ok {
+		room.Broadcast("Chat.UserLeave", utils.M{"user": *user.User})
+		delete(room.Users, user.User.ID)
+	}
 }
