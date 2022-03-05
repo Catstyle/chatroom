@@ -66,6 +66,15 @@ func (self *M) GetStringSlice(name string) []string {
 	if value, ok := (*self)[name].([]string); ok {
 		return value
 	}
+	if value, ok := (*self)[name].([]interface{}); ok {
+		ss := make([]string, len(value))
+		for idx, v := range value {
+			if v, ok := v.(string); ok {
+				ss[idx] = v
+			}
+		}
+		return ss
+	}
 	return []string{}
 }
 

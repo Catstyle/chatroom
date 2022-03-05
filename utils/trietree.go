@@ -1,6 +1,8 @@
 package utils
 
-type trieTree struct {
+import "strings"
+
+type TrieTree struct {
 	root *node
 }
 
@@ -11,8 +13,8 @@ type node struct {
 	children map[rune]*node
 }
 
-func NewTrieTree() *trieTree {
-	return &trieTree{
+func NewTrieTree() *TrieTree {
+	return &TrieTree{
 		root: newNode(0, true),
 	}
 }
@@ -25,13 +27,16 @@ func newNode(char rune, isRoot bool) *node {
 	}
 }
 
-func (tree *trieTree) AddWord(words ...string) {
+func (tree *TrieTree) AddWord(words ...string) {
 	for _, word := range words {
-		tree.addWord(word)
+		word = strings.TrimSpace(word)
+		if word != "" {
+			tree.addWord(word)
+		}
 	}
 }
 
-func (tree *trieTree) addWord(word string) {
+func (tree *TrieTree) addWord(word string) {
 	var current = tree.root
 	var runes = []rune(word)
 	for idx := 0; idx < len(runes); idx++ {
@@ -50,7 +55,7 @@ func (tree *trieTree) addWord(word string) {
 }
 
 // Filter: replace the longest matched runes with mask
-func (tree *trieTree) Filter(text string, mask rune) string {
+func (tree *TrieTree) Filter(text string, mask rune) string {
 	runes := []rune(text)
 	length := len(runes)
 	current := tree.root

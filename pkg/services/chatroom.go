@@ -85,8 +85,11 @@ func (svc *chatroomService) SendText(
 	if !ok {
 		return fmt.Errorf("no such room: %d", user.RoomId)
 	}
-	// TODO: filter text
+	// record raw text, used for statistics
 	msg := room.NewChatMessage(models.CMText, user.User, text)
+
+	// broadcast filtered text
+	msg.MsgData = GetSensitiveService().Filter(msg.MsgData, '*')
 	room.Broadcast("Chat.TextMessage", msg)
 	return nil
 }

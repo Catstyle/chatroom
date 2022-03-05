@@ -1,3 +1,4 @@
 {
-    "DB_DSN": "file:chatroom.sqlite?cache=shared"
+    "DB_DSN": "file:chatroom.sqlite?cache=shared",
+    "PROFANITY_TEXT": ["data/list.txt"]
 }
