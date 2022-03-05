@@ -6,14 +6,14 @@ import (
 )
 
 type UserRepo struct {
-	db *db.Repo
+	DB *db.Repo
 }
 
 var userRepo *UserRepo
 
 func GetUserRepo() *UserRepo {
 	if userRepo == nil {
-		userRepo = &UserRepo{db: db.GetDB()}
+		userRepo = &UserRepo{DB: db.GetDB()}
 	}
 	return userRepo
 }
@@ -23,7 +23,7 @@ func (repo *UserRepo) CreateUser(name, token string) (*models.User, error) {
 		Name:      name,
 		TokenHash: token,
 	}
-	if err := repo.db.Create(&user).Error; err != nil {
+	if err := repo.DB.Create(&user).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
@@ -31,7 +31,7 @@ func (repo *UserRepo) CreateUser(name, token string) (*models.User, error) {
 
 func (repo *UserRepo) GetByName(name string) (*models.User, error) {
 	var user models.User
-	if err := repo.db.Where(&models.User{Name: name}).First(&user).Error; err != nil {
+	if err := repo.DB.Where(&models.User{Name: name}).First(&user).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
