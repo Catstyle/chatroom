@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	chatErrorIndex = 1000
+	chatErrorIndex = 2000
 	ChatroomFull   = chatErrorIndex + iota
 )
 

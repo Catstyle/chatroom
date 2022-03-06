@@ -23,11 +23,13 @@ func main() {
 
 	server := channel.NewTCPServer(
 		channel.ServerConfig{
-			Bind:     options.GetString("SERVER_BIND"),
-			Protocol: &protos.JSONProtocol{},
+			Bind:        options.GetString("SERVER_BIND"),
+			Protocol:    &protos.JSONProtocol{},
+			OnConnClose: services.OnConnClose,
 		},
 	)
 	server.AddRouter(api.NewUserApi(), "User")
 	server.AddRouter(api.NewChatroomApi(), "Chat")
+	server.AddRouter(api.NewStatsApi(), "Stats")
 	server.Start()
 }

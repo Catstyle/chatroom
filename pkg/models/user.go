@@ -10,7 +10,8 @@ type User struct {
 }
 
 type OnlineUser struct {
-	User   *User
-	Conn   *channel.Conn `json:"-"`
-	RoomId uint32
+	User      *User
+	Conn      *channel.Conn `json:"-"`
+	RoomId    uint32
+	LoginTime int64
 }

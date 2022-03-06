@@ -15,8 +15,9 @@ import (
 )
 
 type ServerConfig struct {
-	Bind     string
-	Protocol protos.Protocol
+	Bind        string
+	Protocol    protos.Protocol
+	OnConnClose func(*Conn)
 }
 
 type TCPServer struct {
@@ -163,6 +164,7 @@ func (s *TCPServer) handler(conn *Conn) {
 	addr := conn.RemoteAddr()
 
 	defer func() {
+		s.config.OnConnClose(conn)
 		s.closingQueue <- conn
 		if err := recover(); err != nil {
 			log.Printf("%s: recover from panic error `%s`", addr, err)

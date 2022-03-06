@@ -62,6 +62,16 @@ func (room *Chatroom) GetMessages(count int) []*ChatMessage {
 	return room.messages[start:]
 }
 
+func (room *Chatroom) GetMessagesByType(msgType MsgType) []*ChatMessage {
+	messages := []*ChatMessage{}
+	for _, msg := range room.messages {
+		if msg.MsgType == msgType {
+			messages = append(messages, msg)
+		}
+	}
+	return messages
+}
+
 func (room *Chatroom) Broadcast(method string, data interface{}) {
 	msg := protos.NewMessage(0, protos.BROADCAST, method)
 	for _, peer := range room.Users {

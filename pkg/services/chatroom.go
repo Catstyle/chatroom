@@ -2,7 +2,9 @@ package services
 
 import (
 	"fmt"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/catstyle/chatroom/pkg/models"
 	"github.com/catstyle/chatroom/utils"
@@ -85,13 +87,40 @@ func (svc *chatroomService) SendText(
 	if !ok {
 		return fmt.Errorf("no such room: %d", user.RoomId)
 	}
-	// record raw text, used for statistics
-	msg := room.NewChatMessage(models.CMText, user.User, text)
 
-	// broadcast filtered text
-	msg.MsgData = GetSensitiveService().Filter(msg.MsgData, '*')
+	text = GetSensitiveService().Filter(text, '*')
+	msg := room.NewChatMessage(models.CMText, user.User, text)
 	room.Broadcast("Chat.TextMessage", msg)
 	return nil
+}
+
+func (svc *chatroomService) PopularWord(roomId uint32) (word string, err error) {
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
+	if room, ok := svc.rooms[roomId]; ok {
+		// message CTime is UnixMicro
+		timeLimit := time.Now().Add(-10 * time.Minute).UnixMilli()
+		maxCount := 0
+		word = ""
+		messages := room.GetMessagesByType(models.CMText)
+		counter := make(map[string]int)
+		for idx := len(messages) - 1; idx >= 0; idx-- {
+			msg := messages[idx]
+			if msg.CTime < timeLimit {
+				break
+			}
+			for _, w := range strings.Split(msg.MsgData, " ") {
+				counter[w] += 1
+				if counter[w] > maxCount {
+					maxCount = counter[w]
+					word = w
+				}
+			}
+		}
+	} else {
+		err = fmt.Errorf("room %d not found", roomId)
+	}
+	return word, err
 }
 
 func (svc *chatroomService) Leave(user *models.OnlineUser, roomId uint32) {

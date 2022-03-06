@@ -2,9 +2,11 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/catstyle/chatroom/pkg/channel"
 	"github.com/catstyle/chatroom/pkg/models"
@@ -63,6 +65,20 @@ func (svc *userService) GetOnlineUser(
 	return ou, ok
 }
 
+func (svc *userService) GetOnlineUserByName(
+	username string,
+) (*models.OnlineUser, error) {
+	svc.lock.Lock()
+	defer svc.lock.Unlock()
+
+	for _, ou := range svc.onlineUsers {
+		if ou.User.Name == username {
+			return ou, nil
+		}
+	}
+	return nil, fmt.Errorf("%s not found", username)
+}
+
 func (svc *userService) MustGetOnlineUser(
 	conn net.Conn,
 ) *models.OnlineUser {
@@ -93,7 +109,12 @@ func (svc *userService) createOnlineUser(user *models.User, conn *channel.Conn) 
 	defer svc.lock.Unlock()
 
 	svc.onlineUsers[conn.RemoteAddr().String()] = &models.OnlineUser{
-		User: user,
-		Conn: conn,
+		User:      user,
+		Conn:      conn,
+		LoginTime: time.Now().UnixMilli(),
 	}
+}
+
+func (svc *userService) Logout(conn *channel.Conn) error {
+	return nil
 }
