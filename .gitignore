@@ -49,3 +49,4 @@ coverage_html
 tags
 
 chatroom.sqlite
+bin/
