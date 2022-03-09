@@ -71,7 +71,7 @@ func (api *chatroomApi) Join(
 	if room, err := chatroomSvc.Join(onlineUser, args.RoomId); err == nil {
 		reply.RoomId = room.ID
 		reply.Users = room.Users
-		reply.Messages = room.GetMessages(50)
+		reply.Messages = room.GetLatestMessages(50)
 	}
 	return err
 }

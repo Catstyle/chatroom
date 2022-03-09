@@ -59,7 +59,7 @@ func (room *Chatroom) NewChatMessage(
 }
 
 // Return the latest messages upto count size.
-func (room *Chatroom) GetMessages(count int) []*ChatMessage {
+func (room *Chatroom) GetLatestMessages(count int) []*ChatMessage {
 	start := len(room.messages) - count
 	if start < 0 {
 		start = 0
