@@ -40,6 +40,8 @@ func GetUserService() *userService {
 	return userSvc
 }
 
+// Login will create an OnlineUser object.
+// Create User object if needed, token will be hashed with salt.
 func (svc *userService) Login(
 	conn *channel.Conn, name, token string,
 ) (*models.User, error) {
@@ -79,6 +81,7 @@ func (svc *userService) GetOnlineUserByName(
 	return nil, fmt.Errorf("%s not found", username)
 }
 
+// MustGetOnlineUser is helper method that assume an OnlineUser will be there.
 func (svc *userService) MustGetOnlineUser(
 	conn net.Conn,
 ) *models.OnlineUser {
@@ -116,5 +119,6 @@ func (svc *userService) createOnlineUser(user *models.User, conn *channel.Conn) 
 }
 
 func (svc *userService) Logout(conn *channel.Conn) error {
+	delete(svc.onlineUsers, conn.RemoteAddr().String())
 	return nil
 }

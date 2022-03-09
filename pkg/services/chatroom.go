@@ -130,6 +130,6 @@ func (svc *chatroomService) Leave(user *models.OnlineUser, roomId uint32) {
 	room, ok := svc.rooms[roomId]
 	if ok {
 		room.Broadcast("Chat.UserLeave", utils.M{"user": *user.User})
-		delete(room.Users, user.User.ID)
+		room.UserLeave(user)
 	}
 }

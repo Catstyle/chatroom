@@ -21,6 +21,7 @@ type LoginReply struct {
 	Name string `json:"name"`
 }
 
+// UserApi by interface, methods need to follow the Router signature.
 type UserApi interface {
 	Login(*channel.Conn, *LoginArgs, *LoginReply) error
 }
@@ -32,6 +33,8 @@ func NewUserApi() UserApi {
 	return &userApi{}
 }
 
+// Login will create an OnlineUser object.
+// Create User object if needed.
 func (api *userApi) Login(
 	conn *channel.Conn, args *LoginArgs, reply *LoginReply,
 ) error {

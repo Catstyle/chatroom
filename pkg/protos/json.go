@@ -22,6 +22,7 @@ type Message struct {
 	MsgType       MsgType `json:"msg_type"`
 	Method        string  `json:"method"`
 	ContentLength uint32  `json:"content_length"`
+	// Store the payload after the message body.
 	Data          []byte  `json:"-"`
 }
 
@@ -33,6 +34,7 @@ func NewMessage(msgId uint32, msgType MsgType, method string) *Message {
 	}
 }
 
+// Create new message with the same MsgID and the specific MsgType.
 func (m Message) Convert(msgType MsgType) *Message {
 	return &Message{
 		MsgID:   m.MsgID,
@@ -40,6 +42,7 @@ func (m Message) Convert(msgType MsgType) *Message {
 	}
 }
 
+// Basic Protocol interface.
 type Protocol interface {
 	EncodeMessage(*Message) []byte
 	EncodeMessageWithData(*Message, interface{}) ([]byte, error)
@@ -48,6 +51,7 @@ type Protocol interface {
 	DecodeData([]byte, interface{}) error
 }
 
+// Implementation Protocol interface in json format.
 type JSONProtocol struct {
 }
 

@@ -31,6 +31,7 @@ type TextMessage struct {
 	Text string `json:"text"`
 }
 
+// ChatroomApi by interface, methods need to follow the Router signature.
 type ChatroomApi interface {
 	Join(*channel.Conn, *JoinArgs, *JoinReply) error
 	SendText(*channel.Conn, *TextMessage, *EmptyReply) error
@@ -43,6 +44,9 @@ func NewChatroomApi() ChatroomApi {
 	return &chatroomApi{}
 }
 
+// Join will check if user is in another room.
+// Broadcast UserJoin to other users in room.
+// Return the 50 latest messages.
 func (api *chatroomApi) Join(
 	conn *channel.Conn, args *JoinArgs, reply *JoinReply,
 ) (err error) {

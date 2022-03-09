@@ -9,6 +9,9 @@ type User struct {
 	CTime     int64  `gorm:"autoCreateTime" json:"-"`
 }
 
+
+// Represent an online user.
+// Holding User/Conn values and some temp data.
 type OnlineUser struct {
 	User      *User
 	Conn      *channel.Conn `json:"-"`

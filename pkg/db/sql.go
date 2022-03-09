@@ -13,6 +13,8 @@ type Repo struct {
 
 var db *Repo
 
+// Setup sql database by passing the DSN.
+// Should be called before calling GetDB.
 func Setup(dsn string) {
 	gdb, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -21,6 +23,8 @@ func Setup(dsn string) {
 	db = &Repo{DB: gdb}
 }
 
+// Return the initialized global Repo object.
+// Should call Setup before calling GetDB.
 func GetDB() *Repo {
 	return db
 }

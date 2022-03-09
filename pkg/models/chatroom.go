@@ -13,17 +13,21 @@ const (
 
 type MsgType int
 
+// Currently support text message only.
 const (
 	CMText MsgType = iota
 )
 
+// Holding message related data.
 type ChatMessage struct {
-	Sender  *User `json:"sender"`
-	CTime   int64       `json:"c_time"`
-	MsgType MsgType     `json:"msg_type"`
-	MsgData string      `json:"msg_data"`
+	Sender  *User   `json:"sender"`
+	CTime   int64   `json:"c_time"`
+	MsgType MsgType `json:"msg_type"`
+	MsgData string  `json:"msg_data"`
 }
 
+// Object that handle the chatroom data and provide some helper functions.
+// Not save to db now.
 type Chatroom struct {
 	ID       uint32 `gorm:"primaryKey"`
 	CTime    int64  `gorm:"autoCreateTime"`
@@ -54,8 +58,9 @@ func (room *Chatroom) NewChatMessage(
 	return msg
 }
 
+// Return the latest messages upto count size.
 func (room *Chatroom) GetMessages(count int) []*ChatMessage {
-	start := len(room.messages) - 50
+	start := len(room.messages) - count
 	if start < 0 {
 		start = 0
 	}
@@ -72,6 +77,7 @@ func (room *Chatroom) GetMessagesByType(msgType MsgType) []*ChatMessage {
 	return messages
 }
 
+// Broadcast message around attenders.
 func (room *Chatroom) Broadcast(method string, data interface{}) {
 	msg := protos.NewMessage(0, protos.BROADCAST, method)
 	for _, peer := range room.Users {
@@ -83,5 +89,10 @@ func (room *Chatroom) UserJoin(user *OnlineUser) error {
 	if _, ok := room.Users[user.User.ID]; !ok {
 		room.Users[user.User.ID] = user
 	}
+	return nil
+}
+
+func (room *Chatroom) UserLeave(user *OnlineUser) error {
+	delete(room.Users, user.User.ID)
 	return nil
 }
